@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><!-- TMPL_VAR title --></title>
+    <!-- CSS Files -->
+    <!-- TMPL_LOOP css -->
+    <link href="<!-- TMPL_VAR url -->" rel="stylesheet">
+    <!-- /TMPL_LOOP -->
+  </head>
+  <body>
+    <div id="content">
+    </div>
+    <!-- JavaScript Libraries -->
+    <!-- TMPL_LOOP libs -->
+    <script src="<!--TMPL_VAR url -->"></script>
+    <!-- /TMPL_LOOP -->
+
+    <!-- JavaScript -->
+    <script><!-- TMPL_VAR javascript --></script>
+  </body>
+</html>

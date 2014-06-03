@@ -4,6 +4,8 @@
     :serial t
     :depends-on (#:basicl
 		 #:stefil
-		 #:parenscript)
+		 #:parenscript
+                 #:hunchentoot
+                 #:html-template)
     :components ((:file "package")
 		 (:file "core")))
