@@ -7,5 +7,10 @@
   (:import-from #:swiss-knife
                 #:mkstr
                 #:with-gensyms
-                #:symb))
+                #:symb)
+  (:export *realispic-symbol-table*
+           #:enable-jsx-reader
+           #:disable-jsx-reader
+           #:def-widget
+           #:def-realispic-app))
 
