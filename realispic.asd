@@ -6,7 +6,10 @@
 		 #:stefil
 		 #:parenscript
                  #:hunchentoot
-                 #:html-template)
+                 #:html-template
+                 #:jsown)
     :components ((:file "package")
-		 (:file "core")))
+		 (:file "core")
+                 (:file "candy")
+                 (:file "rpc")))
 

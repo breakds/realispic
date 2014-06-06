@@ -8,30 +8,41 @@
 (defun regular-symbol (keyword-symbol)
   (symb (mkstr keyword-symbol)))
 
-(defvar *dom-tags* '(:html :body :head :div
-                     :form :ul :li :input
-                     :button :a))
 
-(defun jsx-rewrite (jsx-expr)
-  (labels ((transform-attribute (attribute)
-             (case (car attribute)
-               (t attribute))))
-    (if (atom jsx-expr) jsx-expr
-        `(,(cond ((member (car jsx-expr) *dom-tags*)
-                  `(@ *react 
-                      *dom* 
-                      ,(regular-symbol (car jsx-expr))))
-                 (t (regular-symbol (car jsx-expr))))
-           (create ,@(mapcan #'transform-attribute 
-                             (second jsx-expr)))
-           ,@(mapcar #'jsx-rewrite (cddr jsx-expr))))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun jsx-rewrite (jsx-expr)
+    (let ((dom-tags '(:html :body :head :div :button :br
+                      :section
+                      :form :ul :li :input :span :table
+                      :tr :td :button :a :h1 :h2 :h3))) 
+      (labels ((transform-attribute (attribute)
+                 (let ((attr-name (mkstr (car attribute))))
+                   (cond ((string-equal attr-name "ref") 
+                          (list (car attribute)
+                                (let ((transformed (ps* (symb (cadr attribute)))))
+                                  (subseq transformed 
+                                          0 (1- (length transformed))))))
+                         (t attribute)))))
+        (cond ((atom jsx-expr) jsx-expr)
+              ((keywordp (car jsx-expr))
+               `(,(cond ((member (car jsx-expr) dom-tags)
+                         `(@ *react 
+                             *dom* 
+                             ,(regular-symbol (car jsx-expr))))
+                        (t (regular-symbol (car jsx-expr))))
+                  (create ,@(mapcan #'transform-attribute 
+                                    (second jsx-expr)))
+                  ,@(mapcar #'jsx-rewrite (cddr jsx-expr))))
+              (t (cons (car jsx-expr) 
+                       (mapcar #'jsx-rewrite (cdr jsx-expr)))))))))
 
-(defun jsx-reader (stream sub-char-a sub-char-b)
-  (declare (ignorable sub-char-a sub-char-b))
-  (if (and (eq (read-char stream t nil t) #\s)
-           (eq (read-char stream t nil t) #\x))
-      (jsx-rewrite (read stream t nil t))
-      (error "Unrecognized jsx trigger. Use #jsx(...).")))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun jsx-reader (stream sub-char-a sub-char-b)
+    (declare (ignorable sub-char-a sub-char-b))
+    (if (and (eq (read-char stream t nil t) #\s)
+             (eq (read-char stream t nil t) #\x))
+        (jsx-rewrite (read stream t nil t))
+        (error "Unrecognized jsx trigger. Use #jsx(...)."))))
       
 (defvar *readtable-stack* nil)  
 
@@ -49,9 +60,11 @@
 
 (defun process-members (members)
   (labels ((transform-member (member)
-             (case (car member)
-               (t (cons (regular-symbol (car member))
-                        (cdr member))))))
+             (cond ((>= (length member) 3)
+                    `(,(car member) (lambda ,(cadr member)
+                                      ,@(cddr member))))
+                   (t (cons (regular-symbol (car member))
+                            (cdr member))))))
     (mapcan #'transform-member members)))
 
 

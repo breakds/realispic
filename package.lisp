@@ -12,5 +12,10 @@
            #:enable-jsx-reader
            #:disable-jsx-reader
            #:def-widget
-           #:def-realispic-app))
+           #:def-realispic-app
+           ;; RPC
+           #:def-rpc
+           #:with-rpc
+           ;; Candies
+           #:local-node))
 
