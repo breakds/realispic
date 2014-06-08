@@ -58,28 +58,62 @@
      (create ,@(loop for state in states
                   append state))))
 
-(defun process-members (members)
-  (labels ((transform-member (member)
-             (cond ((>= (length member) 3)
-                    `(,(car member) (lambda ,(cadr member)
-                                      ,@(cddr member))))
-                   (t (cons (regular-symbol (car member))
-                            (cdr member))))))
-    (mapcan #'transform-member members)))
-
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar *realispic-symbol-table* (make-hash-table :test #'equal)))
 
-(defmacro def-widget (name (&rest states) (&rest members) &body body)
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (defun ,name ()
-       `(defvar ,',name ((@ *react create-class)
-                         (create get-initial-state ,',(get-initial-state states)
-                                 ,@',(process-members members)
-                                 render (lambda ()
-                                          ,@',body)))))
-     (setf (gethash (ps:ps-inline ,name) *realispic-symbol-table*) #',name)))
+;; (defmacro def-widget (name (&rest states) (&rest members) &body body)
+;;   `(eval-when (:compile-toplevel :load-toplevel :execute)
+;;      (defun ,name ()
+;;        `(defvar ,',name ((@ *react create-class)
+;;                          (create get-initial-state ,',(get-initial-state states)
+;;                                  ,@',(process-members members)
+;;                                  render (lambda ()
+;;                                           ,@',body)))))
+;;      (setf (gethash (ps:ps-inline ,name) *realispic-symbol-table*) #',name)))
+
+(defun exist-props-violations (props)
+  (or
+   (awhen (remove-if #'symbolp props)
+     (error "Realispic: expects all props to be symbols. Please check~{ ~a~}."
+	    it)
+     t)
+   (awhen (remove-if-not #`,(member x1 *defined-operators*) props)
+     (error "Realispic: ~{~a ~}conflicts with names in ps:*defined-operators*."
+	    it)
+     t)))
+
+(defun replace-props (props expr)
+  (cond ((and (symbolp expr)
+	      (member expr props))
+	 `(@ this props ,expr))
+	((consp expr) (mapcar #`,(replace-props props x1) expr))
+	(t expr)))
+
+(defun process-members (members props)
+  (labels ((transform-member (member)
+             (cond ((string-equal (car member) "state")
+		    `(get-initial-state 
+		      ,(get-initial-state (replace-props props 
+							 (cdr member)))))
+		   ((>= (length member) 3)
+		    `(,(car member) (lambda ,(cadr member)
+				      ,@(replace-props props 
+						       (cddr member)))))
+		   (t (cons (regular-symbol (car member))
+                            (cdr (replace-props props member)))))))
+    (mapcan #'transform-member members)))
+
+(defmacro def-widget (name (&rest props) (&rest members) &body body)
+  (when (not (exist-props-violations props))
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (defun ,name ()
+	 `(defvar ,',name ((@ *react create-class)
+			   (create ,@',(process-members members props)
+				   render (lambda ()
+					    ,@',(replace-props props 
+							       body))))))
+       (setf (gethash (ps:ps-inline ,name) 
+		      *realispic-symbol-table*) #',name))))
 
 (defmacro def-realispic-app ((app-name &key 
                                        (title "realispic app")
