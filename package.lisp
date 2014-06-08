@@ -7,7 +7,12 @@
   (:import-from #:swiss-knife
                 #:mkstr
                 #:with-gensyms
-                #:symb)
+                #:symb
+		#:mk-keyword
+		#:aif
+		#:awhen
+		#:it
+		#:group)
   (:export *realispic-symbol-table*
            #:enable-jsx-reader
            #:disable-jsx-reader
@@ -16,6 +21,8 @@
            ;; RPC
            #:def-rpc
            #:with-rpc
+	   #:rpc-result
+	   #:current-session
            ;; Candies
            #:local-node))
 
