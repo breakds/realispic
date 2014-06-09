@@ -24,5 +24,6 @@
 	   #:rpc-result
 	   #:current-session
            ;; Candies
-           #:local-node))
+           #:local-node
+	   #:local-state))
 
