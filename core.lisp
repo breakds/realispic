@@ -281,10 +281,8 @@
          (let ((html-template:*string-modifier* #'identity))
            (with-output-to-string (html-template:*default-template-output*)
              (html-template:fill-and-print-template
-              ,(if template 
-                   template 
-                   (merge-pathnames "template/simple-template.tmpl"
-                                    (asdf:system-source-directory 'realispic)))
+              (merge-pathnames "template/simple-template.tmpl"
+                               (asdf:system-source-directory 'realispic))
               (list :title ,title
                     :css ',(mapcar #`(:url ,x1) css)
                     :libs ',(mapcar #`(:url ,x1) libs)
