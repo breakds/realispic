@@ -183,8 +183,13 @@
   (cond ((and (symbolp expr)
 	      (member expr props))
 	 `(@ this props ,expr))
-	((consp expr) (mapcar #`,(replace-props props x1) expr))
-	(t expr)))
+	((consp expr) 
+         (if (eq (car expr) 'lambda)
+             ;; convert any lambda to local lambda (that inherits
+             ;; "this" from the scope).
+             (cons 'llambda (mapcar #`,(replace-props props x1) (cdr expr)))
+             (mapcar #`,(replace-props props x1) expr)))
+        (t expr)))
 
 (defun process-members (members props)
   "Process the members of a widget definition form, handling special

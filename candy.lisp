@@ -13,5 +13,9 @@
 (defpsmacro local-state (name)
   `(@ this state ,name))
 
-
+;;; llambda (local lambda) is a parenscript macro that bind the this
+;;; to the scope instead of the caller.
+(defpsmacro llambda (args &body body)
+  `(chain (lambda ,args ,@body)
+          (bind this)))
 

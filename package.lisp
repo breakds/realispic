@@ -25,5 +25,6 @@
 	   #:current-session
            ;; Candies
            #:local-node
-	   #:local-state))
+	   #:local-state
+           #:llambda))
 
