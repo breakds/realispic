@@ -69,7 +69,8 @@
                                 (let ((transformed (ps* (symb (cadr attribute)))))
                                   (subseq transformed 
                                           0 (1- (length transformed))))))
-                         ((string-equal attr-name "style")
+                         ((and (string-equal attr-name "style")
+                               (keywordp (cadr attribute)))
                           `(style (create ,@(cdr attribute))))
                          (t attribute)))))
         (cond ((atom jsx-expr) jsx-expr)
