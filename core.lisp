@@ -119,9 +119,9 @@
 ;;; 4        (change-color (new-color)
 ;;; 5           (chain this (set-state (create color new-color)))))
 ;;; 6     #jsx(:div ()
-;;; 7               (:h3 ((style (create "font-color" (local-state color))))
+;;; 7               (:h3 ((style :font-color (local-state color)))
 ;;; 8                    author)
-;;; 9               (:div ((style (create "font-size" (local-state size))))
+;;; 9               (:div ((style :font-size (local-state size)))
 ;;; 10                    comment-content)))
 ;;;
 ;;; In the above example, we define a widget with 4 parts:
