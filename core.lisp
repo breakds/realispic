@@ -59,7 +59,8 @@
     "This function is used to rewrite the JSX experssion as a React
     parenscript expression."
     (let ((dom-tags '(:html :body :head :div :button :br
-                      :section
+                      :figure :figcaption :img :p
+                      :section :select :option :hr :label
                       :form :ul :li :input :span :table
                       :tr :td :button :a :h1 :h2 :h3))) 
       (labels ((transform-attribute (attribute)
