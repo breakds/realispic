@@ -64,7 +64,14 @@
                       :section :select :option :hr :label
                       :form :ul :li :input :span :table
                       :tr :td :button :a :h1 :h2 :h3))) 
-      (labels ((transform-attribute (attribute)
+      (labels ((unitless-style-regularize (styles)
+                 "React.js automatically appends the string 'px' for
+                 style values. However, if we actually want the
+                 unitless version, we should have replace the keyword
+                 with its corresponding names. See
+                 http://facebook.github.io/react/tips/style-props-value-px.html"
+                 (mapcar #`,(if (eq x1 :z-index) 'z-index x1) styles))
+               (transform-attribute (attribute)
                  (let ((attr-name (mkstr (car attribute))))
                    (cond ((string-equal attr-name "ref") 
                           (list (car attribute)
@@ -73,7 +80,7 @@
                                           0 (1- (length transformed))))))
                          ((and (string-equal attr-name "style")
                                (keywordp (cadr attribute)))
-                          `(style (create ,@(cdr attribute))))
+                          `(style (create ,@(unitless-style-regularize (cdr attribute)))))
                          (t attribute)))))
         (cond ((atom jsx-expr) jsx-expr)
               ((keywordp (car jsx-expr))
