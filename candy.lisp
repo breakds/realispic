@@ -18,5 +18,11 @@
 (defpsmacro llambda (args &body body)
   `(chain (lambda ,args ,@body)
           (bind this)))
+
+(defmacro json (&rest items)
+  `(list :obj ,@(mapcar #`(cons ,(car x1) ,(cadr x1))
+                        (group items 2))))
+                                  
+  
   
 

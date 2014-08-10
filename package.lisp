@@ -26,5 +26,6 @@
            ;; Candies
            #:local-node
 	   #:local-state
-           #:llambda))
+           #:llambda
+           #:json))
 
