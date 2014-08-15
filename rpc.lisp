@@ -59,7 +59,7 @@
 							       (mk-keyword
 								key-name))))
 					  (t () nil)))))))
-	     (t (e) (error "server side rpc [~a] failure ~a" ,name e))))))))
+	     (t (e) (error "server side rpc failure ~a" e))))))))
   
 
 (defun gen-json-marshall-ps (args)
