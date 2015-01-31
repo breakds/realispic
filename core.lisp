@@ -60,7 +60,7 @@
     parenscript expression."
     (let ((dom-tags '(:html :body :head :div :button :br
                       :figure :figcaption :img :p
-                      :frame :iframe
+                      :frame :iframe :textarea
                       :section :select :option :hr :label
                       :form :ul :li :input :span :table
                       :tr :td :button :a :h1 :h2 :h3))) 
@@ -236,6 +236,12 @@
        (setf (gethash (ps:ps-inline ,name) 
 		      *realispic-symbol-table*) #',name))))
 
+(defmacro def-global-code (name &body body)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (defun ,name ()
+       (list 'defvar ',name (list 'progn (progn ,@body))))
+     (setf (gethash (ps:ps-inline ,name)
+                    *realispic-symbol-table*) #',name)))
 
 ;;; ---------- Application ----------
 ;;;
