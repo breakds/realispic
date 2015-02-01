@@ -60,7 +60,7 @@
     parenscript expression."
     (let ((dom-tags '(:html :body :head :div :button :br
                       :figure :figcaption :img :p
-                      :frame :iframe :textarea
+                      :frame :iframe :textarea :nav
                       :section :select :option :hr :label
                       :form :ul :li :input :span :table
                       :tr :td :button :a :h1 :h2 :h3))) 
