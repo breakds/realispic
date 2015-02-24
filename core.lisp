@@ -290,7 +290,7 @@
 ;;; (3) (my-game-app :status) => check the status of the server
 ;;; (4) (my-game-app :reload) => stop and restart the server
 
-(defmacro def-realispic-app ((app-name &key 
+(defmacro def-realispic-app ((app-name arguments &key 
                                        (title "realispic app")
                                        (uri "/app")
                                        (css nil)
@@ -299,7 +299,7 @@
                                        (document-base "")) &body body)
   (with-ps-gensyms (result-symbol)
     `(eval-when (:compile-toplevel :load-toplevel :execute)
-       (hunchentoot:define-easy-handler (,(symb app-name '-handler) :uri ,uri) ()
+       (hunchentoot:define-easy-handler (,(symb app-name '-handler) :uri ,uri) ,arguments
          (setf (hunchentoot:content-type*) "text/html")
          (let ((html-template:*string-modifier* #'identity))
            (with-output-to-string (html-template:*default-template-output*)
@@ -309,13 +309,20 @@
               (list :title ,title
                     :css ',(mapcar #`(:url ,x1) css)
                     :libs ',(mapcar #`(:url ,x1) libs)
-                    :javascript (ps ,@(loop for val being the 
-                                         hash-values of *realispic-symbol-table*
-                                         collect (funcall val))
-                                    (let ((,result-symbol (progn ,@body)))
-                                      ((@ *react render-component)
-                                       ,result-symbol
-                                       ((@ document get-element-by-id) "content")))))))))
+                    :javascript (ps* (append 
+                                      (list 'progn 
+                                            ,@(mapcar (lambda (arg)
+                                                        `(list 'defvar 
+                                                               ',arg
+                                                               ,arg))
+                                                      arguments))
+                                      '(,@(loop for val being the 
+                                             hash-values of *realispic-symbol-table*
+                                             collect (funcall val))
+                                        (let ((,result-symbol (progn ,@body)))
+                                          ((@ *react render-component)
+                                           ,result-symbol
+                                           ((@ document get-element-by-id) "content")))))))))))
        (let ((status :stopped)
              (acceptor (make-instance 'hunchentoot:easy-acceptor
                                       :port ,port
