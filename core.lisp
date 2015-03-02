@@ -294,6 +294,7 @@
                                        (title "realispic app")
                                        (uri "/app")
                                        (css nil)
+                                       (icon "")
                                        (libs nil)
                                        (port 8000)
                                        (document-base "")) &body body)
@@ -309,6 +310,7 @@
               (list :title ,title
                     :css ',(mapcar #`(:url ,x1) css)
                     :libs ',(mapcar #`(:url ,x1) libs)
+                    :icon ,icon
                     :javascript (ps* (append 
                                       (list 'progn 
                                             ,@(mapcar (lambda (arg)
