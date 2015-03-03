@@ -62,7 +62,7 @@
                       :figure :figcaption :img :p
                       :frame :iframe :textarea :nav
                       :section :select :option :hr :label
-                      :form :ul :li :input :span :table
+                      :form :ul :li :input :span :table :tbody
                       :tr :td :th :button :a :h1 :h2 :h3 :h4))) 
       (labels ((unitless-style-regularize (styles)
                  "React.js automatically appends the string 'px' for
