@@ -10,6 +10,7 @@
                  #:jsown)
     :components ((:file "package")
 		 (:file "core")
+                 (:file "def-widget")
                  (:file "candy")
                  (:file "rpc")))
 

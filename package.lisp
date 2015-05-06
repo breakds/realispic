@@ -17,6 +17,7 @@
            #:enable-jsx-reader
            #:disable-jsx-reader
            #:def-widget
+           #:def-widget-1
            #:def-global-code
            #:def-realispic-app
            ;; RPC
