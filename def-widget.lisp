@@ -45,8 +45,116 @@
                                    (caddr state))))))
 
   (defun unquantify-keyword (keyword)
-    "Convert a keyword into its counter-part without the leading :."
+    "Convert a keyword into its counter-part without the leading ':'."
     (symb (mkstr keyword)))
+
+
+  ;;; ---------- Variable Transformation ----------
+
+  (defun transform-lambda-form (form targets shadowed transform stop)
+    "Apply #'TRANSFORM on matched varibles, given that the form is
+    lambda-like. This means that the form is (name (args) body)."
+    ;; TODO(breakds): maybe we should transform default values as
+    ;; well.
+    (let* ((new-bound (remove-if #'null
+                                 (mapcar (lambda (arg)
+                                           (if (atom arg)
+                                               (when (symbolp arg)
+                                                 (symbol-name arg))
+                                               (when (symbolp (car arg))
+                                                 (symbol-name (car arg)))))
+                                         (second form))))
+           (updated-shadowed (union (intersection new-bound targets
+                                                  :test #'string-equal)
+                                    shadowed
+                                    :test #'string-equal)))
+      `(,(car form) ,(second form)
+         ,@(mapcar #`,(transform-form x1 targets updated-shadowed 
+                                      transform stop)
+                   (cddr form)))))
+
+  (defun transform-let-form (form targets shadowed transform stop)
+    ;; TODO(breakds): Should throw error when bound variable is not a
+    ;; symbol.
+    (let* ((new-bound (mapcar #`,(symbol-name (car x1)) (cadr form)))
+           (updated-shadowed (union (intersection new-bound targets
+                                                  :test #'string-equal)
+                                    shadowed
+                                    :test #'string-equal)))
+      `(let ,(mapcar (lambda (binding)
+                       (list (car binding)
+                             (transform-form (cadr binding)
+                                             targets
+                                             shadowed
+                                             transform stop)))
+                     (second form))
+         ,@(mapcar #`,(transform-form x1 targets 
+                                      updated-shadowed
+                                      transform stop)
+                   (cddr form)))))
+
+  (defun transform-let*-form (form targets shadowed transform stop)
+    (let ((updated-shadowed shadowed))
+      `(let* ,(loop for binding in (cadr form)
+                 collect (list (car binding)
+                               (transform-form (cadr binding)
+                                               targets
+                                               updated-shadowed
+                                               transform stop))
+                 ;; Note: side effect on updated-shadowed here.
+                 do (let ((name (symbol-name (car binding))))
+                      (setf updated-shadowed
+                            (union updated-shadowed
+                                   (when (member name targets 
+                                                 :test #'string-equal)
+                                     (list name))))))
+         ,@(mapcar #`,(transform-form x1 targets updated-shadowed
+                                      transform stop)
+                   (cddr form)))))
+
+  (defun transform-form (form targets shadowed transform stop)
+    "Given a form, find every occurence of symbols in TARGETS in
+    the form, and replace them with (@ this props *) if they are not
+    shadowed by other local bindings."
+    ;; Considered local bindings are LET, LET*, LAMBDA and
+    ;; lambda-alike.
+    ;;
+    ;; Note: This does not mean we encourage local bindings to shadow
+    ;; targets.
+    (cond ((and stop (funcall stop form)) form)
+          ((atom form) 
+           (if (and (symbolp form)
+                    (member (symbol-name form) targets 
+                            :test #'string-equal)
+                    (not (member (symbol-name form) shadowed
+                                 :test #'string-equal)))
+               (funcall transform form)
+               form))
+          ((and (symbolp (car form))
+                (string-equal (symbol-name (car form)) "LET"))
+           (transform-let-form form targets shadowed transform stop))
+          ((and (symbolp (car form))
+                (string-equal (symbol-name (car form)) "LET*"))
+           (transform-let*-form form targets shadowed transform stop))
+          ((and (symbolp (car form))
+                (string-equal (symbol-name (car form)) "LAMBDA"))
+           (transform-lambda-form form targets shadowed transform stop))
+          (t (mapcar #`,(transform-form x1 targets shadowed transform stop) 
+                     form))))
+
+  (defun attribute-transformer (attributes)
+    (lambda (form)
+      (transform-form form attributes nil
+                      #`(@ this props ,x1)
+                      nil)))
+
+  (defun state-transformer (states)
+    (lambda (form)
+      (transform-form form states nil
+                      #`(@ this state ,x1)
+                      #`,(and (symbolp (car x1))
+                              (string-equal "UPDATE-STATE"
+                                            (symbol-name (car x1)))))))
   
   (defun compile-psx (expr attribute-names)
     (labels ((try-replace-with-local-attribute (expr)
@@ -58,24 +166,23 @@
                        expr)
                    (mapcar #'try-replace-with-local-attribute expr)))
              (transform-attribute (attribute)
-               (destructuring-bind (name value) attribute
-                 (cond ((string-equal name "style")
-                        `(,name (create ,@(mapcan 
-                                           (lambda (style-name style-value)
-                                                    ;; TODO(breakds):
-                                                    ;; make sure
-                                                    ;; style-name is a
-                                                    ;; keyword.
-                                             (ecase style-name 
-                                               (:z-index (list 'z-index 
-                                                               style-value))
-                                               (t (list style-name style-value))))
-                                           ;; TODO(breakds): Check
-                                           ;; whether value is pair of
-                                           ;; 2.
-                                           (group value 2)))))
-                       (t (list name 
-                                (try-replace-with-local-attribute value)))))))
+                 (cond ((string-equal (car attribute) "style")
+                        (destructuring-bind (name . values) attribute
+                          `(,name (create ,@(mapcan 
+                                             (lambda (value-pair)
+                                               ;; TODO(breakds): make
+                                               ;; sure style-name is a
+                                               ;; keyword.
+                                               (case (car value-pair) 
+                                                 (:z-index (list 'z-index 
+                                                                 (cadr value-pair)))
+                                                 (t value-pair)))
+                                             ;; TODO(breakds): Check
+                                             ;; whether value is pair
+                                             ;; of 2.
+                                             (group values 2))))))
+                       (t (cons (car attribute)
+                                (try-replace-with-local-attribute (cdr attribute)))))))
       (cond ((atom expr) (try-replace-with-local-attribute expr))
             ((keywordp (car expr))
              ;; Keyword case, can be either a standard html tag, or a custom tag.
@@ -83,7 +190,7 @@
              ;; ReactClass constructor otherwise.
              ;; TODO(breakds): Compile time error if tag is not recognizable.
              `(,(if (member (car expr) *html-tags*)
-                    `(@ *react *dom* (unquantify-keyword (car expr)))
+                    `(@ *react *dom* ,(unquantify-keyword (car expr)))
                     (unquantify-keyword (car expr)))
                 ;; Handle input-attributes provided for this tag.
                 ;; Note that we DO NOT allow for PSX syntax in
@@ -91,7 +198,8 @@
                 ;;
                 ;; This is understandable because we never put html
                 ;; code inside html attributes.
-                (create ,@(second expr))
+                (create ,@(mapcan #'transform-attribute
+                                  (cadr expr)))
                 ,@(loop for sub-expr in (cddr expr)
                      collect (compile-psx sub-expr attribute-names))))
             (t ;; In this case, must be a function call/macro
@@ -107,15 +215,9 @@
        (defun ,name ()
          `(defvar ,',name ((@ *react create-class)
                            (create get-initial-state ,',(initial-state-slot states)
-                                   render ,',(compile-psx body 
-                                                          (mapcar #`,(symbol-name (car x1))
-                                                                  attributes))))))
+                                   render (lambda () 
+                                            ,',(compile-psx `(progn ,@body)
+                                                            (mapcar #`,(symbol-name (car x1))
+                                                                    attributes)))))))
        (setf (gethash (ps:ps-inline ,name) *realispic-symbol-table*)
              #',name))))
-                           
-
-
-
-                                   
-            
-
