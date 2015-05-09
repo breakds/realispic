@@ -3,7 +3,8 @@
 (defpackage #:breakds.realispic
   (:nicknames #:realispic)
   (:use #:cl
-	#:parenscript)
+	#:parenscript
+        #:stefil)
   (:import-from #:swiss-knife
                 #:mkstr
                 #:with-gensyms
@@ -30,4 +31,5 @@
 	   #:local-state
            #:llambda
            #:json))
+
 

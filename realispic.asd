@@ -12,5 +12,6 @@
 		 (:file "core")
                  (:file "def-widget")
                  (:file "candy")
-                 (:file "rpc")))
+                 (:file "rpc")
+                 (:file "unit-test/realispic-test")))
 

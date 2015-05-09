@@ -143,47 +143,51 @@
                      form))))
 
   (defun attribute-transformer (attributes)
-    (lambda (form)
-      (transform-form form attributes nil
+    (lambda (form shadowed)
+      (transform-form form attributes shadowed
                       #`(@ this props ,x1)
                       nil)))
 
   (defun state-transformer (states)
-    (lambda (form)
-      (transform-form form states nil
+    (lambda (form shadowed)
+      (transform-form form states shadowed
                       #`(@ this state ,x1)
                       #`,(and (symbolp (car x1))
                               (string-equal "UPDATE-STATE"
                                             (symbol-name (car x1)))))))
-  
-  (defun compile-psx (expr attribute-names)
-    (labels ((try-replace-with-local-attribute (expr)
-               (if (atom expr)
-                   (if (and (symbolp expr)
-                            (member (symbol-name expr)
-                                    attribute-names :test #'string-equal))
-                       `(@ this props ,expr)
-                       expr)
-                   (mapcar #'try-replace-with-local-attribute expr)))
-             (transform-attribute (attribute)
-                 (cond ((string-equal (car attribute) "style")
-                        (destructuring-bind (name . values) attribute
-                          `(,name (create ,@(mapcan 
-                                             (lambda (value-pair)
-                                               ;; TODO(breakds): make
-                                               ;; sure style-name is a
-                                               ;; keyword.
-                                               (case (car value-pair) 
-                                                 (:z-index (list 'z-index 
-                                                                 (cadr value-pair)))
-                                                 (t value-pair)))
-                                             ;; TODO(breakds): Check
-                                             ;; whether value is pair
-                                             ;; of 2.
-                                             (group values 2))))))
-                       (t (cons (car attribute)
-                                (try-replace-with-local-attribute (cdr attribute)))))))
-      (cond ((atom expr) (try-replace-with-local-attribute expr))
+
+  (defun psx-compiler (attributes)
+    (let ((trans-attr (attribute-transformer attributes)))
+      
+  (defun compile-psx (expr attribute-names shadowed)
+    ;; (labels ((try-replace-with-local-attribute (expr)
+    ;;            (if (atom expr)
+    ;;                (if (and (symbolp expr)
+    ;;                         (member (symbol-name expr)
+    ;;                                 attribute-names :test #'string-equal))
+    ;;                    `(@ this props ,expr)
+    ;;                    expr)
+    ;;                (mapcar #'try-replace-with-local-attribute expr)))
+    ;;          (transform-tag-attribute (attribute)
+    ;;              (cond ((string-equal (car attribute) "style")
+    ;;                     (destructuring-bind (name . values) attribute
+    ;;                       `(,name (create ,@(mapcan 
+    ;;                                          (lambda (value-pair)
+    ;;                                            ;; TODO(breakds): make
+    ;;                                            ;; sure style-name is a
+    ;;                                            ;; keyword.
+    ;;                                            (case (car value-pair) 
+    ;;                                              (:z-index (list 'z-index 
+    ;;                                                              (cadr value-pair)))
+    ;;                                              (t value-pair)))
+    ;;                                          ;; TODO(breakds): Check
+    ;;                                          ;; whether value is pair
+    ;;                                          ;; of 2.
+    ;;                                          (group values 2))))))
+    ;;                    (t (cons (car attribute)
+    ;;                             (try-replace-with-local-attribute (cdr attribute)))))))
+    (let ((trans-attr (attribute-transformer attribute-names)))
+      (cond ((atom expr) (funcall trans-attr expr))
             ((keywordp (car expr))
              ;; Keyword case, can be either a standard html tag, or a custom tag.
              ;; Call React.DOM.tag-name when it is a standard html-tag, or the custom
@@ -198,7 +202,7 @@
                 ;;
                 ;; This is understandable because we never put html
                 ;; code inside html attributes.
-                (create ,@(mapcan #'transform-attribute
+                (create ,@(mapcan #'transform-tag-attribute
                                   (cadr expr)))
                 ,@(loop for sub-expr in (cddr expr)
                      collect (compile-psx sub-expr attribute-names))))
