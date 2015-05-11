@@ -10,7 +10,7 @@
                  #:jsown)
     :components ((:file "package")
 		 (:file "core")
-                 (:file "def-widget")
+                 (:file "compiler")
                  (:file "candy")
                  (:file "rpc")
                  (:file "unit-test/realispic-test")))

@@ -156,9 +156,6 @@
                               (string-equal "UPDATE-STATE"
                                             (symbol-name (car x1)))))))
 
-  (defun psx-compiler (attributes)
-    (let ((trans-attr (attribute-transformer attributes)))
-      
   (defun compile-psx (expr attribute-names shadowed)
     ;; (labels ((try-replace-with-local-attribute (expr)
     ;;            (if (atom expr)
