@@ -44,9 +44,7 @@
                                    ;; remove :state
                                    (caddr state))))))
 
-  (defun unquantify-keyword (keyword)
-    "Convert a keyword into its counter-part without the leading ':'."
-    (symb (mkstr keyword)))
+
 
 
   ;;; ---------- Variable Transformation ----------

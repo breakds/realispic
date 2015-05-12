@@ -13,20 +13,6 @@
   (is (not (match-symbol :abc)))
   (is (match-symbol 'a)))
 
-
-
-(deftest compile-matcher-test ()
-  (is (equal (compile-matcher 'transform-let '((let-symbol :symbol "let") 
-                                               bindings
-                                               &rest body)
-                              '(loop for binding in bindings
-                                  collect (car binding)))
-             '(transform-let (form shadowed)
-               (destructuring-bind (let-symbol bindings &rest body) form
-                (when (and (match-symbol let-symbol "let"))
-                  (loop for binding in bindings
-                     collect (car binding))))))))
-
 (deftest transform-form-test-case (form targets transform stop expected)
   (is (equal expected
              (transform-form form targets nil transform stop))))
