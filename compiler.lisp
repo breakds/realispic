@@ -7,6 +7,18 @@
 ;; TODO(breakds): compiler utils should live in antoher file,
 ;; e.g. compiler-utils.lisp.
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *html-tags* 
+    '(:html :body :head :span ;; Structure
+      :p :h1 :h2 :h3 :h4 :h5 :h6 :br ;; Text
+      :a ;; Links
+      :div :frame :iframe :form :figure :img :video ;; Container
+      :table :tbody :tr :td :th :thead :tfoot :caption;; Table
+      :ul :ol :li ;; List
+      :input :textarea :select :option :optgroup :button :label :fieldset :legend ;; Interaction
+      :script ;; Script
+      :b :i :sub :sup :big :small :hr) ;; Style
+    "All the keywords that will be recognized as standard html tags by compile-psx.")
+
   (defun match-symbol (input-form &optional (symbol-name nil))
     (and (symbolp input-form)
          (not (keywordp input-form))
@@ -82,23 +94,31 @@
                      `(when (atom form)
                         ,@body)))))))
 
-(defmacro def-code-walker (name args (&rest matchers) &body body)
+(defmacro def-code-walker (name extra-args (&rest matchers) &body body)
   (with-gensyms (form shadowed sub-form enabled-matchers matcher result args)
-    `(defun ,name (form &key ,@args)
-       (macrolet ((proceed (,form &rest ,args)
+    `(defun ,name (form &key ,@extra-args)
+       (macrolet ((process (,form &rest ,args)
                     `(execute ,,form shadowed matcher-list ,@,args))
-                  (proceed-each (,form &rest ,args)
+                  (process-each (,form &rest ,args)
                     `(loop for ,',sub-form in ,,form
-                        collect (execute ,',sub-form shadowed matcher-list ,@,args))))
+                        collect (execute ,',sub-form shadowed matcher-list ,@,args)))
+		  (push-shadowed (&rest ,args)
+		    `(progn ,@,(list 'mapcar '#`(push (symbol-name ,x1) shadowed)
+				     args))))
          (labels ((execute (,form ,shadowed ,enabled-matchers &key (on nil) (off nil))
                     (or (loop 
-                           for ,matcher in ,enabled-matchers
-                           for ,result = (funcall ,matcher ,form ,shadowed)
+                           for ,matcher in (remove-if #`,(member x1 off)
+						      (union ,enabled-matchers on))
+                           for ,result = (funcall ,matcher ,form ,shadowed ,enabled-matchers)
                            when ,result
                            return ,result)
-                        ,form))
+			;; If nothing matches, fall back to the
+			;; default cases.
+			(and (atom ,form) ,form)
+			(loop for ,sub-form in ,form
+			   collect (execute ,sub-form ,shadowed ,enabled-matchers))))
                   (initialize (&rest ,enabled-matchers)
-                    (apply #'execute form nil ,enabled-matchers))
+                    (funcall #'execute form nil ,enabled-matchers))
                   ,@(mapcar #`,(compile-matcher (car x1)
                                                 (second x1)
                                                 (cddr x1))
@@ -120,44 +140,62 @@
     ((atom-attribute () (when (and (one-of-symbols-p form attribute-names)
                                    (not (one-of-symbols-p form shadowed)))
                           `(@ this props ,form)))
-     (atom-default () form))
-     ;; (let-form ((let-symbol :symbol "let") bindings &rest body)
-     ;;           `(let ,(mapcar (lambda (binding)
-     ;;                            (list (car binding)
-     ;;                                  (execute (second binding)
-     ;;                                           shadowed
-     ;;                                           #'atom-attribute
-     ;;                                           #'atom-default
-     ;;                                           #'let-form
-     ;;                                           #'psx-tags)))
-     ;;                          bindings)
-     ;;              ,@(execute 
-                           
-     ;; (psx-tags ((tag :keyword) attributes &rest body) 
-     ;;           ;; Keyword case, can be either a standard html tag, or
-     ;;           ;; a custom tag.  Call React.DOM.tag-name when it is a
-     ;;           ;; standard html-tag, or the custom ReactClass
-     ;;           ;; constructor otherwise.  TODO(breakds): Compile time
-     ;;           ;; error if tag is not recognizable.
-     ;;           `(,(if (member tag *html-tags*)
-     ;;                  `(@ *react *dom* ,(unquantify-keyword tag))
-     ;;                  (unquantify-keyword tag))
-     ;;              ;; Handle input-attributes provided for this tag.
-     ;;              ;; Note that we DO NOT allow for PSX syntax in
-     ;;              ;; attributes.
-     ;;              ;;
-     ;;              ;; This is understandable because we never put
-     ;;              ;; html code inside html attributes.
-     ;;              (create ,@(mapcan (lambda (attribute-pair)
-     ;;                                  (list (car attribute-pair)
-     ;;                                        (execute (cadr attribute-pair)
-     ;;                                                 shadowed
-     ;;                                                 #'atom-attribute)))
-     ;;                                attributes))
-     ;;              ,@(execute-body sub-form shadowed
-     ;;                              #'psx-tags
-     ;;                              #'atom-attribute)))))))
-  (initialize #'atom-attribute #'atom-default))
+     (let-form ((let-symbol :symbol "let") bindings &rest body)
+               `(let ,(mapcar (lambda (binding)
+                                (list (car binding)
+                                      (process (second binding))))
+                              bindings)
+		  ,@(progn (mapcar (lambda (binding) (push-shadowed (car binding))) 
+				   bindings)
+			   nil)
+                  ,@(process-each body)))
+     (let*-form ((let-symbol :symbol "let*") bindings &rest body)
+		`(let* ,(mapcar (lambda (binding)
+				  (let ((result (list (car binding)
+						      (process (second binding)))))
+				    (push-shadowed (car binding))
+				    result))
+				bindings)
+		   ,@(process-each body)))
+     (lambda-form ((lambda-symbol :symbol "lambda") arg-list &rest body)
+		  `(lambda ,(mapcar (lambda (arg)
+				      ;; TODO(breakds): Should
+				      ;; consider shadow in default
+				      ;; value forms.
+				      (cond ((match-&-symbol arg) arg)
+					    ((match-symbol arg) 
+					     (push-shadowed arg)
+					     arg)
+					    ((and (listp arg) (match-symbol (car arg)))
+					     (push-shadowed (car arg))
+					     arg)
+					    (t (error "lambda-form: ~a is not a valid argument."
+						      arg))))
+				    arg-list)
+		     ,@(process-each body)))
+     (psx-tags ((tag :keyword) attributes &rest body) 
+               ;; Keyword case, can be either a standard html tag, or
+               ;; a custom tag.  Call React.DOM.tag-name when it is a
+               ;; standard html-tag, or the custom ReactClass
+               ;; constructor otherwise.  TODO(breakds): Compile time
+               ;; error if tag is not recognizable.
+               `(,(if (member tag *html-tags*)
+                      `(@ *react *dom* ,(unquantify-keyword tag))
+                      (unquantify-keyword tag))
+                  ;; Handle input-attributes provided for this tag.
+                  ;; Note that we DO NOT allow for PSX syntax in
+                  ;; attributes.
+                  ;;
+                  ;; This is understandable because we never put
+                  ;; html code inside html attributes.
+                  (create ,@(mapcan (lambda (attribute-pair)
+                                      (list (car attribute-pair)
+                                            (process (cadr attribute-pair) 
+						     :off `(,#'psx-tags))))
+                                    attributes))
+                  ,@(process-each body))))
+  (initialize #'atom-attribute #'let-form #'let*-form #'lambda-form 
+	      #'psx-tags))
                                  
                                  
                      
