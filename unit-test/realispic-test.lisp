@@ -134,3 +134,4 @@
 	       switch-jewel-plan (lambda (id)
 				   ((@ this set-state)
                                     (create jewel-plan-id (+ (@ this props fixed-id) id))))))))
+
