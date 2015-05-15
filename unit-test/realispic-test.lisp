@@ -13,79 +13,137 @@
   (is (not (match-symbol :abc)))
   (is (match-symbol 'a)))
 
-(deftest transform-form-test-case (form targets transform stop expected)
-  (is (equal expected
-             (transform-form form targets nil transform stop))))
-
-(deftest transform-form-test ()
-  (transform-form-test-case '(+ 1 2) '("a" "b") 
-                            #`(@ this props ,x1)
-                            nil
-                            '(+ 1 2))
+(deftest compile-psx-simple-test ()
+  ;; Single matcher cases
   
-  (transform-form-test-case '(+ b a) '("a" "b") 
-                            #`(@ this props ,x1)
-                            nil
-                            '(+ (@ this props b) (@ this props a)))
-
-  (transform-form-test-case 
-   '(lambda (x y)
-     (+ x y a b))
-   '("x" "a")
-   #`(@ this props ,x1)
-   nil
-   '(lambda (x y)
-     (+ x y (@ this props a) b)))
+  ;; 1. Attributes
+  (is (equal (compile-psx 'a :attribute-names '("a"))
+	     '(render (lambda () (@ this props a)))))
   
-  (transform-form-test-case
-   '(let ((a 12)
-          (b c))
-     (+ a b c))
-   '("a" "c")
-   #`(@ this props ,x1)
-   nil
-   '(let ((a 12)
-          (b (@ this props c)))
-     (+ a b (@ this props c))))
+  ;; 2. Let/Let*
+  (is (equal (compile-psx '(let ((a 12)) a)
+			  :attribute-names '("a"))
+	     '(render (lambda () (let ((a 12)) a)))))
 
-  (transform-form-test-case
-   '(let* ((c (+ a 2))
-           (a 12)
-           (b (+ a 2)))
-     (+ a b))
-   '("a" "b")
-   #`(@ this props ,x1)
-   nil
-   '(let* ((c (+ (@ this props a) 2))
-           (a 12)
-           (b (+ a 2)))
-     (+ a b)))
+  (is (equal (compile-psx '(let ((a b)) (+ a b))
+			  :attribute-names '("a" "b"))
+	     '(render (lambda () 
+			(let ((a (@ this props b)))
+			  (+ a (@ this props b)))))))
 
-  (transform-form-test-case
-   '(let ((a (lambda (x y)
-               (+ x y c)))
-          (b (lambda (x y z)
-               (+ (funcall a x y) z))))
-     (funcall b x y d))
-   '("a" "b" "c" "x" "d")
-   #`(@ this props ,x1)
-   nil
-   '(let ((a (lambda (x y)
-               (+ x y (@ this props c))))
-          (b (lambda (x y z)
-               (+ (funcall (@ this props a) x y) z))))
-     (funcall b (@ this props x) y (@ this props d))))
-  (transform-form-test-case
-   '(lambda (x y)
-     (update-state a x b y))
-   '("a b")
-   #`(@ this state ,x1)
-   #`,(and (symbolp (car x1))
-           (string-equal "update-state"
-                         (symbol-name (car x1))))
-   '(lambda (x y)
-     (update-state a x b y))))
+  (is (equal (compile-psx '(let* ((a b) (b a)) (+ a b))
+			  :attribute-names '("a" "b"))
+	     '(render (lambda () 
+			(let* ((a (@ this props b))
+			       (b a))
+			  (+ a b))))))
+
+  (is (equal (compile-psx '(let ((a 12)) a))
+	     '(render (lambda () (let ((a 12)) a)))))
+
+  ;; 3. State references
+  (is (equal (compile-psx '(let ((a (:state a))) (+ a (:state b)))
+			  :state-defs '((a 1) (b 2)))
+	     '(render (lambda ()
+			(let ((a (@ this state a)))
+			  (+ a (@ this state b)))))))
+
+  ;; 4. Lambda
+  (is (equal (compile-psx '(lambda (a) (+ a b))
+			  :attribute-names '("a" "b"))
+	     '(render (lambda ()
+			(lambda (a)
+			  (+ a (@ this props b)))))))
+
+  ;; 5. PSX Tags
+  (is (equal (compile-psx '(:div ((width (:state a))
+				  (height b))
+			    "div content")
+			  :state-defs '((a 10)))
+	     '(render (lambda ()
+			((@ *react *dom* div) (create width (@ this state a)
+						      height b)
+			 "div content")))))
+
+  (is (equal (compile-psx '(:customized ((width (:state a))
+					 (height b))
+			    "content")
+			  :state-defs '((a 10)))
+	     '(render (lambda ()
+			(customized (create width (@ this state a)
+					    height b)
+				    "content")))))
+
+  ;; 6. Top level labels
+  (is (equal (compile-psx '(labels ((func-1 (x) (+ 1 x))
+				    (func-2 () nil))
+			    (:a ((href "link")) x))
+			  :attribute-names '("x"))
+	     '(render (lambda ()
+			((@ *react *dom* a) (create href "link") (@ this props x)))
+	       func-1 (lambda (x) (+ 1 x))
+	       func-2 (lambda () nil)))))
+
+
+;; class-name -> class
+;; update-state should check state names
+;; style
+			    
+(deftest compile-psx-complicated-test ()
+  (is (equal (compile-psx '(labels ((toggle-full-summary ()
+				     (update-state full-summary 
+						   (not (:state full-summary))))
+				    (switch-jewel-plan (id)
+				     (update-state jewel-plan-id (+ fixed-id id))))
+			    (:div ((class-name "panel panel-success"))
+			     (:div ((class-name "panel-heading"))
+			      (@ armor-set defense))
+			     (:table ((class-name "table"))
+			      (:tr ()
+				   (:th ((class-name "col-md-2")
+					 (style :text-align "center"))
+					"Current ID")
+				   (:th ((class-name "col-md-10")
+					 (style :text-align "left"))
+					"Summary"))
+			      (:line ((armor-set armor-set)
+				      (summary (:state full-summary))
+				      (id (:state jewel-plan-id)))))))
+			  :state-defs '((full-summary "")
+					(jewel-plan-id 0))
+			  :attribute-names '("armor-set" "fixed-id"))
+	     '(render (lambda ()
+			((@ *react *dom* div) (create class-name "panel panel-success")
+			 ((@ *react *dom* div) (create class-name "panel-heading")
+			  (@ (@ this props armor-set) defense))
+			 ((@ *react *dom* table) (create class-name "table")
+			  ((@ *react *dom* tr) () 
+			   ((@ *react *dom* th) (create class-name "col-md-2"
+							style :text-align)
+			    "Current ID")
+			   ((@ *react *dom* th) (create class-name "col-md-10"
+							style :text-align)
+			    "Summary"))
+			  (line (create armor-set (@ this props armor-set)
+					summary (@ this state full-summary)
+					id (@ this state jewel-plan-id))))))
+	       toggle-full-summary (lambda ()
+				     (update-state full-summary
+						   (not (@ this state full-summary))))
+	       switch-jewel-plan (lambda (id)
+				   (update-state jewel-plan-id (+ (@ this props fixed-id) id)))))))
+						    
+				     
+				
+			   
+			   
+			   
+				     
+					
+				    
   
+
+    
 
       
      

@@ -41,8 +41,10 @@
   (defun compile-matcher (name pattern body)
     (with-gensyms (shadowed)
       `(,name (form ,shadowed matcher-list)
+	      (declare (ignorable form matcher-list))
               ;; Destructring bind the input form into the pattern.
               (let ((shadowed ,shadowed))
+		(declare (ignorable shadowed))
                 ,(if pattern
                      (let ((lambda-list 
                             (loop for entry in pattern
@@ -91,40 +93,41 @@
                                                                           "Invalid entry ~a.")
                                                                    entry)))))
                              ,@body))))
-                     `(when (atom form)
-                        ,@body)))))))
+                     `(progn ,@body)))))))
 
 (defmacro def-code-walker (name extra-args (&rest matchers) &body body)
-  (with-gensyms (form shadowed sub-form enabled-matchers matcher result args)
-    `(defun ,name (form &key ,@extra-args)
-       (macrolet ((process (,form &rest ,args)
-                    `(execute ,,form shadowed matcher-list ,@,args))
-                  (process-each (,form &rest ,args)
-                    `(loop for ,',sub-form in ,,form
-                        collect (execute ,',sub-form shadowed matcher-list ,@,args)))
-		  (push-shadowed (&rest ,args)
-		    `(progn ,@,(list 'mapcar '#`(push (symbol-name ,x1) shadowed)
-				     args))))
-         (labels ((execute (,form ,shadowed ,enabled-matchers &key (on nil) (off nil))
-                    (or (loop 
-                           for ,matcher in (remove-if #`,(member x1 off)
-						      (union ,enabled-matchers on))
-                           for ,result = (funcall ,matcher ,form ,shadowed ,enabled-matchers)
-                           when ,result
-                           return ,result)
-			;; If nothing matches, fall back to the
-			;; default cases.
-			(and (atom ,form) ,form)
-			(loop for ,sub-form in ,form
-			   collect (execute ,sub-form ,shadowed ,enabled-matchers))))
-                  (initialize (&rest ,enabled-matchers)
-                    (funcall #'execute form nil ,enabled-matchers))
-                  ,@(mapcar #`,(compile-matcher (car x1)
-                                                (second x1)
-                                                (cddr x1))
-                            matchers))
-           
-           ,@body)))))
+  (with-gensyms (form shadowed sub-form enabled-matchers matcher result args updated-matchers)
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (defun ,name (form &key ,@extra-args)
+	 (macrolet ((process (,form &rest ,args)
+		      `(execute ,,form shadowed matcher-list ,@,args))
+		    (process-each (,form &rest ,args)
+		      `(loop for ,',sub-form in ,,form
+			  collect (execute ,',sub-form shadowed matcher-list ,@,args)))
+		    (push-shadowed (&rest ,args)
+		      `(progn ,@,(list 'mapcar '#`(push (symbol-name ,x1) shadowed)
+				       args))))
+	   (labels ((execute (,form ,shadowed ,enabled-matchers &key (on nil) (off nil))
+		      (or (let ((,updated-matchers (remove-if #`,(member x1 off)
+							      (union ,enabled-matchers on))))
+			    (loop 
+			       for ,matcher in ,updated-matchers
+			       for ,result = (funcall ,matcher ,form ,shadowed ,updated-matchers)
+			       when ,result
+			       return ,result))
+			  ;; If nothing matches, fall back to the
+			  ;; default cases.
+			  (and (atom ,form) ,form)
+			  (loop for ,sub-form in ,form
+			     collect (execute ,sub-form ,shadowed ,enabled-matchers))))
+		    (initialize (&rest ,enabled-matchers)
+		      (funcall #'execute form nil ,enabled-matchers))
+		    ,@(mapcar #`,(compile-matcher (car x1)
+						  (second x1)
+						  (cddr x1))
+			      matchers))
+	     
+	     ,@body))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun one-of-symbols-p (input-form symbol-names)
@@ -136,8 +139,9 @@
     "Convert a keyword into its counter-part without the leading ':'."
     (symb (mkstr keyword))))
 
-(def-code-walker compile-psx (attribute-names)
-    ((atom-attribute () (when (and (one-of-symbols-p form attribute-names)
+(def-code-walker compile-psx (attribute-names state-defs)
+    ((atom-attribute () (when (and (atom form)
+				   (one-of-symbols-p form attribute-names)
                                    (not (one-of-symbols-p form shadowed)))
                           `(@ this props ,form)))
      (let-form ((let-symbol :symbol "let") bindings &rest body)
@@ -173,29 +177,81 @@
 						      arg))))
 				    arg-list)
 		     ,@(process-each body)))
-     (psx-tags ((tag :keyword) attributes &rest body) 
-               ;; Keyword case, can be either a standard html tag, or
-               ;; a custom tag.  Call React.DOM.tag-name when it is a
-               ;; standard html-tag, or the custom ReactClass
-               ;; constructor otherwise.  TODO(breakds): Compile time
-               ;; error if tag is not recognizable.
-               `(,(if (member tag *html-tags*)
-                      `(@ *react *dom* ,(unquantify-keyword tag))
-                      (unquantify-keyword tag))
-                  ;; Handle input-attributes provided for this tag.
-                  ;; Note that we DO NOT allow for PSX syntax in
-                  ;; attributes.
-                  ;;
-                  ;; This is understandable because we never put
-                  ;; html code inside html attributes.
-                  (create ,@(mapcan (lambda (attribute-pair)
-                                      (list (car attribute-pair)
-                                            (process (cadr attribute-pair) 
-						     :off `(,#'psx-tags))))
-                                    attributes))
-                  ,@(process-each body))))
-  (initialize #'atom-attribute #'let-form #'let*-form #'lambda-form 
-	      #'psx-tags))
+     (state-ref ((state-key :keyword) var-name)
+		(when (eq state-key :state)
+		  (unless (match-symbol var-name)
+		    (error "state-ref: expect a symbol as state name but get ~a."
+			   var-name))
+		  (let ((valid-state-names (mapcar #`,(symbol-name (car x1)) 
+						   state-defs)))
+		    (unless (member (symbol-name var-name)
+				    valid-state-names
+				    :test #'string-equal)
+		      (error (mkstr "state-ref: ~a is not a valid state name. "
+				    "Expect one of {~{~a~^, ~}}.")
+			     var-name valid-state-names)))
+		  `(@ this state ,var-name)))
+     (psx-tags ((tag :keyword) attributes &rest body)
+	       (unless (eq tag :state)
+		 ;; Keyword case, can be either a standard html tag, or
+		 ;; a custom tag.  Call React.DOM.tag-name when it is a
+		 ;; standard html-tag, or the custom ReactClass
+		 ;; constructor otherwise.  TODO(breakds): Compile time
+		 ;; error if tag is not recognizable.
+		 (unless (listp attributes)
+		   ;; Validation of attributes.
+		   (error "psx-tags: expect list as attributes for ~a but get ~a."
+			  tag
+			  attributes))
+		 `(,(if (member tag *html-tags*)
+			`(@ *react *dom* ,(unquantify-keyword tag))
+			(unquantify-keyword tag))
+		    ;; Handle input-attributes provided for this tag.
+		    ;; Note that we DO NOT allow for PSX syntax in
+		    ;; attributes.
+		    ;;
+		    ;; This is understandable because we never put
+		    ;; html code inside html attributes.
+		    (create ,@(mapcan (lambda (attribute-pair)
+					(list (car attribute-pair)
+					      (process (cadr attribute-pair) 
+						       :off `(,#'psx-tags))))
+				      attributes))
+		    ,@(process-each body))))
+     (top-level () (when (or (atom form)
+			     (not (match-symbol (car form) "labels")))
+		     `(render (lambda () ,(process form
+						   :off (list #'top-level 
+							      #'top-level-labels)
+						   :on (list #'atom-attribute
+							     #'let-form
+							     #'let*-form
+							     #'lambda-form
+							     #'psx-tags
+							     #'state-ref))))))
+     (top-level-labels ((labels-symbol :symbol "labels") fun-defs &rest body)
+		       `(render 
+			 (lambda ()
+			   ,@(process-each body 
+					   :off (list #'top-level #'top-level-labels)
+					   :on (list #'atom-attribute
+						     #'let-form
+						     #'let*-form
+						     #'lambda-form
+						     #'psx-tags
+						     #'state-ref)))
+			 ,@(mapcan (lambda (fun-def)
+				     (list (car fun-def)
+					   (process (cons 'lambda (rest fun-def)) 
+						    :off (list #'top-level #'top-level-labels)
+						    :on (list #'atom-attribute
+							      #'let-form
+							      #'let*-form
+							      #'lambda-form
+							      #'psx-tags
+							      #'state-ref))))
+				   fun-defs))))
+  (initialize #'top-level #'top-level-labels))
                                  
                                  
                      
