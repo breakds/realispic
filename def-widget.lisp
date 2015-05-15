@@ -222,11 +222,10 @@
        (defun ,name ()
          `(defvar ,',name ((@ *react create-class)
                            (create get-initial-state ,',(initial-state-slot state-defs)
-                                   ,',@(compile-psx (if (and (listp body)
-                                                             (= (length body) 1))
-                                                        body
-                                                        `(progn ,@body))
-                                                    :attribute-names attribute-names
-                                                    :state-defs state-defs)))))
+                                   ,@',(compile-psx (if (= (length body) 1)
+							(car body)
+							`(progn ,@(car body)))
+						    :attribute-names attribute-names
+						    :state-defs state-defs)))))
        (setf (gethash (ps:ps-inline ,name) *realispic-symbol-table*)
              #',name))))
