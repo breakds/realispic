@@ -137,7 +137,11 @@
 
   (defun unquantify-keyword (keyword)
     "Convert a keyword into its counter-part without the leading ':'."
-    (symb (mkstr keyword))))
+    (symb (mkstr keyword)))
+
+  (defun process-style-name (style-name)
+    style-name))
+                    
 
 (def-code-walker compile-psx (attribute-names state-defs)
     ((atom-attribute () (when (and (atom form)
@@ -177,6 +181,23 @@
 						      arg))))
 				    arg-list)
 		     ,@(process-each body)))
+     (update-state-form ((fun-name :symbol "update-state") &rest pairs)
+                        (let ((valid-state-names (mapcar #`,(symbol-name (car x1)) 
+                                                         state-defs)))
+                          `((@ this set-state) 
+                            (create ,@(loop for (var-name value) 
+                                         on pairs by #'cddr
+                                         append (if (member (symbol-name var-name)
+                                                            valid-state-names
+                                                            :test #'string-equal)
+                                                    (list var-name 
+                                                          (process value
+                                                                   :off `(,#'update-state-form
+                                                                          ,#'psx-tags)))
+                                                    (error (mkstr "state-ref: ~a is not a valid "
+                                                                  "state name. Expect one of "
+                                                                  "{~{~a~^, ~}}.")
+                                                           var-name valid-state-names)))))))
      (state-ref ((state-key :keyword) var-name)
 		(when (eq state-key :state)
 		  (unless (match-symbol var-name)
@@ -213,9 +234,20 @@
 		    ;; This is understandable because we never put
 		    ;; html code inside html attributes.
 		    (create ,@(mapcan (lambda (attribute-pair)
-					(list (car attribute-pair)
-					      (process (cadr attribute-pair) 
-						       :off `(,#'psx-tags))))
+					(list (cond ((string-equal (car attribute-pair) 
+                                                                   "class")
+                                                     'class-name)
+                                                    (t (car attribute-pair)))
+                                              (if (string-equal (symbol-name (car attribute-pair))
+                                                                "style")
+                                                  `(create ,@(loop for (style-name style-value)
+                                                                on (rest attribute-pair)
+                                                                by #'cddr
+                                                                append (list (process-style-name 
+                                                                              style-name)
+                                                                             (process style-value))))
+                                                  (process (cadr attribute-pair) 
+                                                           :off `(,#'psx-tags)))))
 				      attributes))
 		    ,@(process-each body))))
      (top-level () (when (or (atom form)
@@ -228,6 +260,7 @@
 							     #'let*-form
 							     #'lambda-form
 							     #'psx-tags
+                                                             #'update-state-form
 							     #'state-ref))))))
      (top-level-labels ((labels-symbol :symbol "labels") fun-defs &rest body)
 		       `(render 
@@ -239,6 +272,7 @@
 						     #'let*-form
 						     #'lambda-form
 						     #'psx-tags
+                                                     #'update-state-form
 						     #'state-ref)))
 			 ,@(mapcan (lambda (fun-def)
 				     (list (car fun-def)
@@ -249,6 +283,7 @@
 							      #'let*-form
 							      #'lambda-form
 							      #'psx-tags
+                                                              #'update-state-form
 							      #'state-ref))))
 				   fun-defs))))
   (initialize #'top-level #'top-level-labels))
