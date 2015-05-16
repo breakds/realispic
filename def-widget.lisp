@@ -227,5 +227,5 @@
 							`(progn ,@(car body)))
 						    :attribute-names attribute-names
 						    :state-defs state-defs)))))
-       (setf (gethash (ps:ps-inline ,name) *realispic-symbol-table*)
+       (setf (gethash (symbol-name ',name) *realispic-symbol-table*)
              #',name))))
