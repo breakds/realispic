@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><!-- TMPL_VAR title --></title>
+    <link href="<!-- TMPL_VAR icon -->" rel="shortcut icon" type="image/x-icon"/>
+    <!-- CSS Files -->
+    <!-- TMPL_LOOP css -->
+    <link href="<!-- TMPL_VAR url -->" rel="stylesheet">
+    <!-- /TMPL_LOOP -->
+    <!-- <style type="text/css"> -->
+    <!--   body { -->
+    <!--     margin: 0px -->
+    <!--     font-family: source-sans-pro, sans-serif; -->
+    <!--     position: relative; -->
+    <!--     -webkit-font-smoothing: antialiased; -->
+    <!--   } -->
+    <!-- </style> -->
+  </head>
+  <body>
+    <div id="content">
+    </div>
+    <!-- JavaScript Libraries -->
+    <!-- TMPL_LOOP libs -->
+    <script src="<!--TMPL_VAR url -->"></script>
+    <!-- /TMPL_LOOP -->
+
+    <!-- JavaScript -->
+    <script><!-- TMPL_VAR javascript --></script>
+  </body>
+</html>
