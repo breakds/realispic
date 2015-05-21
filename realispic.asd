@@ -12,6 +12,7 @@
 		 (:file "core")
                  (:file "compiler")
                  (:file "def-widget")
+		 (:file "def-app")
                  (:file "candy")
                  (:file "rpc")
                  (:file "unit-test/realispic-test")))

@@ -96,18 +96,18 @@
 		      `(progn ,@,(list 'mapcar '#`(push (symbol-name ,x1) shadowed)
 				       args))))
 	   (labels ((execute (,form ,shadowed ,enabled-matchers &key (on nil) (off nil))
-		      (or (let ((,updated-matchers (remove-if #`,(member x1 off)
-							      (union ,enabled-matchers on))))
-			    (loop 
+		      (let ((,updated-matchers (remove-if #`,(member x1 off)
+							  (union ,enabled-matchers on))))
+			(or (loop 
 			       for ,matcher in ,updated-matchers
 			       for ,result = (funcall ,matcher ,form ,shadowed ,updated-matchers)
 			       when ,result
-			       return ,result))
+			       return ,result)
 			  ;; If nothing matches, fall back to the
 			  ;; default cases.
-			  (and (atom ,form) ,form)
-			  (loop for ,sub-form in ,form
-			     collect (execute ,sub-form ,shadowed ,enabled-matchers))))
+			    (and (atom ,form) ,form)
+			    (loop for ,sub-form in ,form
+			       collect (execute ,sub-form ,shadowed ,updated-matchers)))))
 		    (initialize (&rest ,enabled-matchers)
 		      (funcall #'execute form nil ,enabled-matchers))
 		    ,@(mapcar #`,(compile-matcher (car x1)

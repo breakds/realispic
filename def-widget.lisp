@@ -18,9 +18,10 @@
       :b :i :sub :sup :big :small :hr) ;; Style
     "All the keywords that will be recognized as standard html tags by compile-psx.")
 
-  (defvar *realispic-symbol-table* (make-hash-table :test #'equal)
+  (defvar *realispic-symbol-table* (make-hash-table :test #'string-equal)
     "Stores all the realispic (custom) symbols and its value, where
-    the value is the function that generates ParenScript code.")
+    the value is the function that generates ParenScript code and its
+    dependencies list.")
 
 
   (defmacro compile-error ((&rest format-string) &rest args)
@@ -70,7 +71,7 @@
   (defun process-style-name (style-name)
     style-name))
 
-(def-code-walker compile-psx (attribute-names state-defs)
+(def-code-walker compile-psx (attribute-names state-defs dependencies psx-only)
     ((atom-attribute () (when (and (atom form)
 				   (one-of-symbols-p form attribute-names)
                                    (not (one-of-symbols-p form shadowed)))
@@ -153,7 +154,11 @@
 			  attributes))
 		 `(,(if (member tag *html-tags*)
 			`(@ *react *dom* ,(unquantify-keyword tag))
-			(unquantify-keyword tag))
+			(let ((widget-name (unquantify-keyword tag)))
+			  ;; Mark the widget as a denpendency of the widget being defined
+			  (pushnew (symbol-name widget-name) dependencies
+				   :test #'string-equal)
+			  widget-name))
 		    ;; Handle input-attributes provided for this tag.
 		    ;; Note that we DO NOT allow for PSX syntax in
 		    ;; attributes.
@@ -213,19 +218,24 @@
                                                               #'update-state-form
 							      #'state-ref))))
 				   fun-defs))))
-  (initialize #'top-level #'top-level-labels))
+  (if psx-only 
+      (values (initialize #'psx-tags) dependencies)
+      (values (initialize #'top-level #'top-level-labels) dependencies)))
+  
 
 (defmacro def-widget-1 (name (&rest args) &body body)
   (multiple-value-bind (attribute-names state-defs)
       (split-argument-list args)
-    `(eval-when (:compile-toplevel :load-toplevel :execute)
-       (defun ,name ()
-         `(defvar ,',name ((@ *react create-class)
-                           (create get-initial-state ,',(initial-state-slot state-defs)
-                                   ,@',(compile-psx (if (= (length body) 1)
-							(car body)
-							`(progn ,@(car body)))
-						    :attribute-names attribute-names
-						    :state-defs state-defs)))))
-       (setf (gethash (symbol-name ',name) *realispic-symbol-table*)
-             #',name))))
+    (multiple-value-bind (compiled-body dependencies)
+	(compile-psx (if (= (length body) 1)
+			 (car body)
+			 `(progn ,@(car body)))
+		     :attribute-names attribute-names
+		     :state-defs state-defs)
+      `(eval-when (:compile-toplevel :load-toplevel :execute)
+	 (defun ,name ()
+	   `(defvar ,',name ((@ *react create-class)
+			     (create get-initial-state ,',(initial-state-slot state-defs)
+				     ,@',compiled-body))))
+	 (setf (gethash (symbol-name ',name) *realispic-symbol-table*)
+	       (cons #',name ',dependencies))))))

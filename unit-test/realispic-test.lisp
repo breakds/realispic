@@ -86,6 +86,11 @@
 
 
 (deftest compile-psx-complicated-test ()
+  ;; Simple Test
+  (is (equal (compile-psx '(+ 1 1))
+	     '(render (lambda () (+ 1 1)))))
+  
+  ;; Complicated Test
   (is (equal (compile-psx '(labels ((toggle-full-summary ()
 				     (update-state full-summary
 						   (not (:state full-summary))))
@@ -133,5 +138,34 @@
                                               (not (@ this state full-summary)))))
 	       switch-jewel-plan (lambda (id)
 				   ((@ this set-state)
-                                    (create jewel-plan-id (+ (@ this props fixed-id) id))))))))
+                                    (create jewel-plan-id (+ (@ this props fixed-id) id)))))))
+
+  ;; psx-only
+  (is (equal (compile-psx '(:customized-tag () "haha") :psx-only t)
+	     '(customized-tag (create) "haha"))))
+
+(deftest single-dependency-test (form expected-dependencies)
+  (multiple-value-bind (compiled dependencies)
+      (compile-psx form :psx-only t)
+    ;; Set equality test
+    (is (= (length expected-dependencies) 
+	   (length dependencies)
+	   (length (intersection expected-dependencies
+				 dependencies
+				 :test #'string-equal))))))
+    
+
+(deftest compile-pxs-dependency-test ()
+  (single-dependency-test '(:tag1 () 12) '("tag1"))
+  (single-dependency-test '(:div () (:fun () (+ x y) (:fun-stuff () "fun")))
+			  '("fun-stuff" "fun")))
+
+			    
+
+
+
+
+
+
+
 
