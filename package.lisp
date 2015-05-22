@@ -20,6 +20,7 @@
            #:def-widget
            #:def-widget-1
            #:def-global-code
+	   #:def-app
            #:def-realispic-app
            ;; RPC
            #:def-rpc

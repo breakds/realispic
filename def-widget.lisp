@@ -152,13 +152,13 @@
 		   (error "psx-tags: expect list as attributes for ~a but get ~a."
 			  tag
 			  attributes))
-		 `(,(if (member tag *html-tags*)
-			`(@ *react *dom* ,(unquantify-keyword tag))
-			(let ((widget-name (unquantify-keyword tag)))
-			  ;; Mark the widget as a denpendency of the widget being defined
-			  (pushnew (symbol-name widget-name) dependencies
-				   :test #'string-equal)
-			  widget-name))
+		 `(,@(if (member tag *html-tags*)
+			 `((@ *react *dom* ,(unquantify-keyword tag)))
+			 (let ((widget-name (unquantify-keyword tag)))
+			   ;; Mark the widget as a denpendency of the widget being defined
+			   (pushnew (symbol-name widget-name) dependencies
+				    :test #'string-equal)
+			   `((@ *react create-element) ,widget-name)))
 		    ;; Handle input-attributes provided for this tag.
 		    ;; Note that we DO NOT allow for PSX syntax in
 		    ;; attributes.
