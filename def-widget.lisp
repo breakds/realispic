@@ -126,6 +126,13 @@
                                                                   "state name. Expect one of "
                                                                   "{~{~a~^, ~}}.")
                                                            var-name valid-state-names)))))))
+     (child-ref ((child-key :keyword) &rest indices)
+		(when (eq child-key :children)
+		  (case (length indices)
+		    (0 `(@ this props children))
+		    (1 `(aref (@ this props children) ,(car indices)))
+		    (t `(list ,@(mapcar #`(aref (@ this props children) ,x1)
+					indices))))))
      (state-ref ((state-key :keyword) var-name)
 		(when (eq state-key :state)
 		  (unless (match-symbol var-name)

@@ -70,9 +70,10 @@
 			    "content")
 			  :state-defs '((a 10)))
 	     '(render (lambda ()
-			(customized (create width (@ this state a)
-					    height b)
-				    "content")))))
+			((@ *react create-element) customized 
+			 (create width (@ this state a)
+				 height b)
+			 "content")))))
 
   ;; 6. Top level labels
   (is (equal (compile-psx '(labels ((func-1 (x) (+ 1 x))
@@ -129,7 +130,8 @@
                                                                                 props 
                                                                                 summary-color)))
 			    "Summary"))
-			  (line (create armor-set (@ this props armor-set)
+			  ((@ *react create-element) 
+			   line (create armor-set (@ this props armor-set)
 					summary (@ this state full-summary)
 					id (@ this state jewel-plan-id))))))
 	       toggle-full-summary (lambda ()
@@ -142,7 +144,7 @@
 
   ;; psx-only
   (is (equal (compile-psx '(:customized-tag () "haha") :psx-only t)
-	     '(customized-tag (create) "haha"))))
+	     '((@ *react create-element) customized-tag (create) "haha"))))
 
 (deftest single-dependency-test (form expected-dependencies)
   (multiple-value-bind (compiled dependencies)
