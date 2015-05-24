@@ -130,9 +130,12 @@
 		(when (eq child-key :children)
 		  (case (length indices)
 		    (0 `(@ this props children))
-		    (1 `(aref (@ this props children) ,(car indices)))
-		    (t `(list ,@(mapcar #`(aref (@ this props children) ,x1)
-					indices))))))
+		    (1 `(aref (@ this props children) ,(process (car indices)
+                                                                :off `(,#'psx-tags))))
+		    (t `(list ,@(mapcar #`(aref (@ this props children) 
+                                                ,(process x1
+                                                          :off `(,#'psx-tags)))
+                                        indices))))))
      (state-ref ((state-key :keyword) var-name)
 		(when (eq state-key :state)
 		  (unless (match-symbol var-name)
@@ -148,7 +151,8 @@
 			     var-name valid-state-names)))
 		  `(@ this state ,var-name)))
      (psx-tags ((tag :keyword) attributes &rest body)
-	       (unless (eq tag :state)
+	       (unless (or (eq tag :state)
+                           (eq tag :children))
 		 ;; Keyword case, can be either a standard html tag, or
 		 ;; a custom tag.  Call React.DOM.tag-name when it is a
 		 ;; standard html-tag, or the custom ReactClass
@@ -200,7 +204,8 @@
 							     #'lambda-form
 							     #'psx-tags
                                                              #'update-state-form
-							     #'state-ref))))))
+							     #'state-ref
+                                                             #'child-ref))))))
      (top-level-labels ((labels-symbol :symbol "labels") fun-defs &rest body)
 		       `(render 
 			 (lambda ()
@@ -212,7 +217,8 @@
 						     #'lambda-form
 						     #'psx-tags
                                                      #'update-state-form
-						     #'state-ref)))
+						     #'state-ref
+                                                     #'child-ref)))
 			 ,@(mapcan (lambda (fun-def)
 				     (list (car fun-def)
 					   (process (cons 'lambda (rest fun-def)) 
@@ -223,7 +229,8 @@
 							      #'lambda-form
 							      #'psx-tags
                                                               #'update-state-form
-							      #'state-ref))))
+							      #'state-ref
+                                                              #'child-ref))))
 				   fun-defs))))
   (if psx-only 
       (values (initialize #'psx-tags) dependencies)

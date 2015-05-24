@@ -41,12 +41,28 @@
   (is (equal (compile-psx '(let ((a 12)) a))
 	     '(render (lambda () (let ((a 12)) a)))))
 
-  ;; 3. State references
+  ;; 3.1 State references
   (is (equal (compile-psx '(let ((a (:state a))) (+ a (:state b)))
 			  :state-defs '((a 1) (b 2)))
 	     '(render (lambda ()
 			(let ((a (@ this state a)))
 			  (+ a (@ this state b)))))))
+
+  ;; 3.2 children reference
+  (is (equal (compile-psx '(:div () 
+                            (:children 0)
+                            (map (:children some-num 3 (:state a)) (lambda (x) x))
+                            (map (:children) (lambda (x) x)))
+                          :state-defs '((a 1))
+                          :attribute-names '("some-num"))
+             '(render (lambda ()
+                        ((@ *react *dom* div) (create)
+                         (aref (@ this props children) 0)
+                         (map (list (aref (@ this props children) (@ this props some-num))
+                                    (aref (@ this props children) 3)
+                                    (aref (@ this props children) (@ this state a)))
+                              (lambda (x) x))
+                         (map (@ this props children ) (lambda (x) x)))))))
 
   ;; 4. Lambda
   (is (equal (compile-psx '(lambda (a) (+ a b))
@@ -157,7 +173,7 @@
 				 :test #'string-equal))))))
     
 
-(deftest compile-pxs-dependency-test ()
+(deftest compile-psx-dependency-test ()
   (single-dependency-test '(:tag1 () 12) '("tag1"))
   (single-dependency-test '(:div () (:fun () (+ x y) (:fun-stuff () "fun")))
 			  '("fun-stuff" "fun")))
