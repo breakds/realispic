@@ -78,8 +78,11 @@
                           `(@ this props ,form)))
      (chain-ref ((at-symbol :symbol "@") &rest paths)
                 `(@ ,(process (car paths)) 
-                     ,@(process-each (cdr paths)
-                                     :off `(,#'atom-attribute))))
+                     ,@(loop for path in (cdr paths)
+                          collect (if (atom path)
+                                      path
+                                      (process path
+                                               :off `(,#'atom-attribute))))))
      (let-form ((let-symbol :symbol "let") bindings &rest body)
                `(let ,(mapcar (lambda (binding)
                                 (list (car binding)
