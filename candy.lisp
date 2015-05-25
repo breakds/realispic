@@ -19,10 +19,11 @@
   `(chain (lambda ,args ,@body)
           (bind this)))
 
+(defpsmacro map (fun list &key this)
+  `((@ ,list map) ,fun ,this))
+
 (defmacro json (&rest items)
   `(list :obj ,@(mapcar #`(cons ,(car x1) ,(cadr x1))
                         (group items 2))))
-                                  
-  
-  
+
 
