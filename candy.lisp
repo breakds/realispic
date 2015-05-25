@@ -22,6 +22,13 @@
 (defpsmacro map (fun list &key this)
   `((@ ,list map) ,fun ,this))
 
+(defpsmacro rand-int (end)
+  `(funcall (@ *math floor)
+            (* (funcall (@ *math random)) ,end)))
+
+(defpsmacro trace (content)
+  `((@ console log) ,content))
+
 (defmacro json (&rest items)
   `(list :obj ,@(mapcar #`(cons ,(car x1) ,(cadr x1))
                         (group items 2))))

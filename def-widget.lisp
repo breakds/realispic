@@ -76,6 +76,10 @@
 				   (one-of-symbols-p form attribute-names)
                                    (not (one-of-symbols-p form shadowed)))
                           `(@ this props ,form)))
+     (chain-ref ((at-symbol :symbol "@") &rest paths)
+                `(@ ,(process (car paths)) 
+                     ,@(process-each (cdr paths)
+                                     :off `(,#'atom-attribute))))
      (let-form ((let-symbol :symbol "let") bindings &rest body)
                `(let ,(mapcar (lambda (binding)
                                 (list (car binding)
@@ -199,6 +203,7 @@
 						   :off (list #'top-level 
 							      #'top-level-labels)
 						   :on (list #'atom-attribute
+                                                             #'chain-ref
 							     #'let-form
 							     #'let*-form
 							     #'lambda-form
@@ -212,6 +217,7 @@
 			   ,@(process-each body 
 					   :off (list #'top-level #'top-level-labels)
 					   :on (list #'atom-attribute
+                                                     #'chain-ref
 						     #'let-form
 						     #'let*-form
 						     #'lambda-form
@@ -224,6 +230,7 @@
 					   (process (cons 'lambda (rest fun-def)) 
 						    :off (list #'top-level #'top-level-labels)
 						    :on (list #'atom-attribute
+                                                              #'chain-ref
 							      #'let-form
 							      #'let*-form
 							      #'lambda-form

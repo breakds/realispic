@@ -30,6 +30,8 @@
            ;; Candies
            #:local-node
 	   #:local-state
+           #:rand-int
+           #:trace
            #:llambda
            #:json))
 
