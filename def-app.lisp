@@ -57,7 +57,7 @@
 				       (remove-if-not #`,(match-file-type x1 "css")
 						      includes))
 			:libs `((:url "https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js")
-				(:url "https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react.min.js")
+				(:url "https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react-with-addons.js")
 				,@',(mapcar #`(:url ,x1)
 					    (remove-if-not #`,(match-file-type x1 "js")
 							   includes)))

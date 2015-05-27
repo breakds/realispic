@@ -170,36 +170,39 @@
 		   (error "psx-tags: expect list as attributes for ~a but get ~a."
 			  tag
 			  attributes))
-		 `(,@(if (member tag *html-tags*)
-			 `((@ *react *dom* ,(unquantify-keyword tag)))
-			 (let ((widget-name (unquantify-keyword tag)))
-			   ;; Mark the widget as a denpendency of the widget being defined
-			   (pushnew (symbol-name widget-name) dependencies
-				    :test #'string-equal)
-			   `((@ *react create-element) ,widget-name)))
-		    ;; Handle input-attributes provided for this tag.
-		    ;; Note that we DO NOT allow for PSX syntax in
-		    ;; attributes.
-		    ;;
-		    ;; This is understandable because we never put
-		    ;; html code inside html attributes.
-		    (create ,@(mapcan (lambda (attribute-pair)
-					(list (cond ((string-equal (car attribute-pair) 
-                                                                   "class")
-                                                     'class-name)
-                                                    (t (car attribute-pair)))
-                                              (if (string-equal (symbol-name (car attribute-pair))
-                                                                "style")
-                                                  `(create ,@(loop for (style-name style-value)
-                                                                on (rest attribute-pair)
-                                                                by #'cddr
-                                                                append (list (process-style-name 
-                                                                              style-name)
-                                                                             (process style-value))))
-                                                  (process (cadr attribute-pair) 
-                                                           :off `(,#'psx-tags)))))
-				      attributes))
-		    ,@(process-each body))))
+		 `(,@(cond ((member tag *html-tags*)
+                            `((@ *react *dom* ,(unquantify-keyword tag))))
+                           ((eq tag :transition)
+                            `((@ *react create-element) (@ *react addons *c-s-s-transition-group)))
+                           (t (let ((widget-name (unquantify-keyword tag)))
+                                ;; Mark the widget as a denpendency of
+                                ;; the widget being defined
+                                (pushnew (symbol-name widget-name) dependencies
+                                         :test #'string-equal)
+                                `((@ *react create-element) ,widget-name))))
+                     ;; Handle input-attributes provided for this tag.
+                     ;; Note that we DO NOT allow for PSX syntax in
+                     ;; attributes.
+                     ;;
+                     ;; This is understandable because we never put
+                     ;; html code inside html attributes.
+                     (create ,@(mapcan (lambda (attribute-pair)
+                                         (list (cond ((string-equal (car attribute-pair) 
+                                                                    "class")
+                                                      'class-name)
+                                                     (t (car attribute-pair)))
+                                               (if (string-equal (symbol-name (car attribute-pair))
+                                                                 "style")
+                                                   `(create ,@(loop for (style-name style-value)
+                                                                 on (rest attribute-pair)
+                                                                 by #'cddr
+                                                                 append (list (process-style-name 
+                                                                               style-name)
+                                                                              (process style-value))))
+                                                   (process (cadr attribute-pair) 
+                                                            :off `(,#'psx-tags)))))
+                                       attributes))
+                     ,@(process-each body))))
      (top-level () (when (or (atom form)
 			     (not (match-symbol (car form) "labels")))
 		     `(render (lambda () ,(process form
@@ -245,7 +248,7 @@
   (if psx-only 
       (values (initialize #'psx-tags) dependencies)
       (values (initialize #'top-level #'top-level-labels) dependencies)))
-  
+
 
 (defmacro def-widget-1 (name (&rest args) &body body)
   (multiple-value-bind (attribute-names state-defs)

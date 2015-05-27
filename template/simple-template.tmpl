@@ -7,6 +7,24 @@
     <!-- TMPL_LOOP css -->
     <link href="<!-- TMPL_VAR url -->" rel="stylesheet">
     <!-- /TMPL_LOOP -->
+    <style type="text/css">
+      @-webkit-keyframes appear-animation {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+      }
+
+      .go-appear {
+        animation-name: appear-animation;
+        animation-duration: 0.5s;
+        animation-iteration-count: 1;
+        animation-direction: alternate;
+        animation-timing-function: ease-out;
+      }
+
+      .size-changer {
+        transition:  color 1.2s ease-in;
+      }
+    </style>
     <!-- <style type="text/css"> -->
     <!--   body { -->
     <!--     margin: 0px -->
