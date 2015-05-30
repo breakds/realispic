@@ -3,32 +3,23 @@
   <head>
     <title><!-- TMPL_VAR title --></title>
     <link href="<!-- TMPL_VAR icon -->" rel="shortcut icon" type="image/x-icon"/>
+
     <!-- CSS Files -->
-    <!-- TMPL_LOOP css -->
+    <!-- TMPL_LOOP css-include -->
     <link href="<!-- TMPL_VAR url -->" rel="stylesheet">
     <!-- /TMPL_LOOP -->
-    <style type="text/css">
-      @-webkit-keyframes appear-animation {
-        0% { opacity: 0; }
-        100% { opacity: 1; }
-      }
 
-      .go-appear {
-        animation-name: appear-animation;
-        animation-duration: 0.5s;
-        animation-iteration-count: 1;
-        animation-direction: alternate;
-        animation-timing-function: ease-out;
-      }
-    </style>
+    <!-- JavaScript Libraries -->
+    <!-- TMPL_LOOP js-include -->
+    <script src="<!--TMPL_VAR url -->"></script>
+    <!-- /TMPL_LOOP -->
+    
+    <style type="text/css"><!-- TMPL_VAR css --></style>
   </head>
   <body>
     <div id="content">
     </div>
-    <!-- JavaScript Libraries -->
-    <!-- TMPL_LOOP libs -->
-    <script src="<!--TMPL_VAR url -->"></script>
-    <!-- /TMPL_LOOP -->
+
 
     <!-- JavaScript -->
     <script><!-- TMPL_VAR javascript --></script>

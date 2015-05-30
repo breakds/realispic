@@ -132,15 +132,15 @@
 					(jewel-plan-id 0))
 			  :attribute-names '("armor-set" "fixed-id" "summary-color"))
 	     '(render (lambda ()
-			((@ *react *dom* div) (create class-name "panel panel-success")
-			 ((@ *react *dom* div) (create class-name "panel-heading")
+			((@ *react *dom* div) (create class-name (+ " " "panel panel-success"))
+			 ((@ *react *dom* div) (create class-name (+ " " "panel-heading"))
 			  (@ (@ this props armor-set) defense))
-			 ((@ *react *dom* table) (create class-name "table")
+			 ((@ *react *dom* table) (create class-name (+ " " "table"))
 			  ((@ *react *dom* tr) (create) 
-			   ((@ *react *dom* th) (create class-name "col-md-2"
+			   ((@ *react *dom* th) (create class-name (+ " " "col-md-2")
 							style (create :text-align "center"))
 			    "Current ID")
-			   ((@ *react *dom* th) (create class-name "col-md-10"
+			   ((@ *react *dom* th) (create class-name (+ " " "col-md-10")
 							style (create :text-align "left"
                                                                       :color (@ this 
                                                                                 props 

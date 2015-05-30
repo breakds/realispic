@@ -34,7 +34,7 @@
 		     (includes nil)
 		     (widget nil))
 
-  (multiple-value-bind (body required-widgets)
+  (multiple-value-bind (body required-widgets body-css)
       (compile-psx widget :psx-only t)
     ;; Check Dependencies
     (let ((all-dependencies (widget-dependency-closure required-widgets)))
@@ -53,15 +53,20 @@
 		  (merge-pathnames "template/simple-template.tmpl"
 				   (asdf:system-source-directory 'realispic))
 		  (list :title ,title
-			:css ',(mapcar #`(:url ,x1)
-				       (remove-if-not #`,(match-file-type x1 "css")
-						      includes))
-			:libs `((:url "https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js")
-				(:url "https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react-with-addons.js")
-				,@',(mapcar #`(:url ,x1)
-					    (remove-if-not #`,(match-file-type x1 "js")
-							   includes)))
+			:css-include ',(mapcar #`(:url ,x1)
+                                               (remove-if-not #`,(match-file-type x1 "css")
+                                                              includes))
+			:js-include `((:url "https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js")
+                                      (:url "https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react-with-addons.js")
+                                      ,@',(mapcar #`(:url ,x1)
+                                                  (remove-if-not #`,(match-file-type x1 "js")
+                                                                 includes)))
 			:icon ,icon
+                        :css (compile-css (quote ,(append body-css
+                                                          (loop for widget-name in all-dependencies
+                                                             append (funcall (car (gethash widget-name
+                                                                                           *realispic-symbol-table*))
+                                                                             :css)))))
 			:javascript (ps* (list 'progn
 					       ;; http parameters as global variables.
 					       ,@(mapcar (lambda (arg)
@@ -73,7 +78,8 @@
 					       ,@(loop for widget-name in all-dependencies
 						    collect `(quote ,(funcall 
 								      (car (gethash widget-name
-										    *realispic-symbol-table*)))))
+										    *realispic-symbol-table*))
+                                                                      :javascript)))
 					       ;; Place the final widget.
 					       '(let ((,app-var ,body))
 						 ((@ *react render)

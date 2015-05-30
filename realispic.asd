@@ -9,6 +9,7 @@
                  #:html-template
                  #:jsown)
     :components ((:file "package")
+                 (:file "css")
 		 (:file "core")
                  (:file "compiler")
                  (:file "def-widget")

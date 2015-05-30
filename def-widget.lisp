@@ -69,7 +69,27 @@
     (symb (mkstr keyword)))
 
   (defun process-style-name (style-name)
-    style-name))
+    style-name)
+
+  (defun compile-animation (pairs)
+    (let* ((animation-name (format nil "tween-~a" (ps-gensym)))
+           keyframes animation-block)
+           ;; (keyframes `(,animation-name :keyframes))
+           ;; (animation-block `((,(format nil ".~a" animation-name)))))
+      (loop for (key value) on pairs by #'cddr do
+           (case key
+             (:keyframe (push (cons (list (car value)) (cdr value))
+                              keyframes))
+             ;; otherwise, must be animation- prefixed.
+             (t (let ((*print-case* :downcase))
+                  (push value animation-block)
+                  (push (format nil "animation-~a" key) animation-block)))))
+      (values (list (list* :keyframes animation-name keyframes)
+                    (list* `(,(format nil ".~a" animation-name)) 
+                           "animation-name"
+                           animation-name
+                           animation-block))
+              animation-name))))
 
 (def-code-walker compile-psx (attribute-names state-defs dependencies psx-only css)
     ((atom-attribute () (when (and (atom form)
@@ -170,39 +190,59 @@
 		   (error "psx-tags: expect list as attributes for ~a but get ~a."
 			  tag
 			  attributes))
-		 `(,@(cond ((member tag *html-tags*)
-                            `((@ *react *dom* ,(unquantify-keyword tag))))
-                           ((eq tag :transition)
-                            `((@ *react create-element) (@ *react addons *c-s-s-transition-group)))
-                           (t (let ((widget-name (unquantify-keyword tag)))
-                                ;; Mark the widget as a denpendency of
-                                ;; the widget being defined
-                                (pushnew (symbol-name widget-name) dependencies
-                                         :test #'string-equal)
-                                `((@ *react create-element) ,widget-name))))
-                     ;; Handle input-attributes provided for this tag.
-                     ;; Note that we DO NOT allow for PSX syntax in
-                     ;; attributes.
-                     ;;
-                     ;; This is understandable because we never put
-                     ;; html code inside html attributes.
-                     (create ,@(mapcan (lambda (attribute-pair)
-                                         (list (cond ((string-equal (car attribute-pair) 
-                                                                    "class")
-                                                      'class-name)
-                                                     (t (car attribute-pair)))
-                                               (if (string-equal (symbol-name (car attribute-pair))
-                                                                 "style")
-                                                   `(create ,@(loop for (style-name style-value)
-                                                                 on (rest attribute-pair)
-                                                                 by #'cddr
-                                                                 append (list (process-style-name 
-                                                                               style-name)
-                                                                              (process style-value))))
-                                                   (process (cadr attribute-pair) 
-                                                            :off `(,#'psx-tags)))))
-                                       attributes))
-                     ,@(process-each body))))
+
+                 (let (classes)
+                   ;; First pass of attributes scan. Calculate anything
+                   ;; that needs to be done before generating the actual
+                   ;; compiled code.
+                   (loop for entry in attributes
+                      when (string-equal (car entry) "animation")
+                      do (multiple-value-bind (css-result animation-class)
+                             (compile-animation (cdr entry))
+                           (loop for rule in css-result
+                              do (push rule css))
+                           (push animation-class classes)))
+                   ;; Second pass of attributes scan. Emit code.
+                   `(,@(cond ((member tag *html-tags*)
+                              `((@ *react *dom* ,(unquantify-keyword tag))))
+                             ((eq tag :transition)
+                              `((@ *react create-element) (@ *react addons *c-s-s-transition-group)))
+                             (t (let ((widget-name (unquantify-keyword tag)))
+                                  ;; Mark the widget as a denpendency of
+                                  ;; the widget being defined
+                                  (pushnew (symbol-name widget-name) dependencies
+                                           :test #'string-equal)
+                                  `((@ *react create-element) ,widget-name))))
+                       ;; Handle input-attributes provided for this tag.
+                       ;; Note that we DO NOT allow for PSX syntax in
+                       ;; attributes.
+                       ;;
+                       ;; This is understandable because we never put
+                       ;; html code inside html attributes.
+                       (create ,@(mapcan (lambda (attribute-pair)
+                                           (list (cond ((string-equal (car attribute-pair) 
+                                                                      "class")
+                                                        'class-name)
+                                                       (t (car attribute-pair)))
+                                                 (cond ((string-equal (car attribute-pair)
+                                                                      "style")
+                                                        `(create ,@(loop for (style-name style-value)
+                                                                      on (rest attribute-pair)
+                                                                      by #'cddr
+                                                                      append (list (process-style-name 
+                                                                                    style-name)
+                                                                                   (process style-value)))))
+                                                       ((string-equal (car attribute-pair)
+                                                                      "class")
+                                                        (loop for entry in (cdr attribute-pair)
+                                                             do (push entry classes))
+                                                        `(+ ,@(mapcan (lambda (x)
+                                                                        `(" " ,(process x :off `(,#'psx-tags))))
+                                                                      classes)))
+                                                       (t (process (cadr attribute-pair) 
+                                                                   :off `(,#'psx-tags))))))
+                                         attributes))
+                       ,@(process-each body)))))
      (top-level () (when (or (atom form)
 			     (not (match-symbol (car form) "labels")))
 		     `(render (lambda () ,(process form
@@ -246,23 +286,26 @@
                                                               #'child-ref))))
 				   fun-defs))))
   (if psx-only 
-      (values (initialize #'psx-tags) dependencies)
-      (values (initialize #'top-level #'top-level-labels) dependencies)))
+      (values (initialize #'psx-tags) dependencies css)
+      (values (initialize #'top-level #'top-level-labels) dependencies css)))
 
 
 (defmacro def-widget-1 (name (&rest args) &body body)
   (multiple-value-bind (attribute-names state-defs)
       (split-argument-list args)
-    (multiple-value-bind (compiled-body dependencies)
+    (multiple-value-bind (compiled-body dependencies css)
 	(compile-psx (if (= (length body) 1)
 			 (car body)
 			 `(progn ,@(car body)))
 		     :attribute-names attribute-names
 		     :state-defs state-defs)
-      `(eval-when (:compile-toplevel :load-toplevel :execute)
-	 (defun ,name ()
-	   `(defvar ,',name ((@ *react create-class)
-			     (create get-initial-state ,',(initial-state-slot state-defs)
-				     ,@',compiled-body))))
-	 (setf (gethash (symbol-name ',name) *realispic-symbol-table*)
-	       (cons #',name ',dependencies))))))
+      (with-gensyms (language)
+        `(eval-when (:compile-toplevel :load-toplevel :execute)
+           (defun ,name (&optional (,language :javascript))
+             (if (eq ,language :css)
+                 ',css
+                 `(defvar ,',name ((@ *react create-class)
+                                   (create get-initial-state ,',(initial-state-slot state-defs)
+                                           ,@',compiled-body)))))
+           (setf (gethash (symbol-name ',name) *realispic-symbol-table*)
+                 (cons #',name ',dependencies)))))))
