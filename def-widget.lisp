@@ -71,7 +71,7 @@
   (defun process-style-name (style-name)
     style-name))
 
-(def-code-walker compile-psx (attribute-names state-defs dependencies psx-only)
+(def-code-walker compile-psx (attribute-names state-defs dependencies psx-only css)
     ((atom-attribute () (when (and (atom form)
 				   (one-of-symbols-p form attribute-names)
                                    (not (one-of-symbols-p form shadowed)))
