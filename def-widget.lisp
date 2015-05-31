@@ -219,29 +219,29 @@
                        ;;
                        ;; This is understandable because we never put
                        ;; html code inside html attributes.
-                       (create ,@(mapcan (lambda (attribute-pair)
-                                           (list (cond ((string-equal (car attribute-pair) 
-                                                                      "class")
-                                                        'class-name)
-                                                       (t (car attribute-pair)))
-                                                 (cond ((string-equal (car attribute-pair)
-                                                                      "style")
-                                                        `(create ,@(loop for (style-name style-value)
-                                                                      on (rest attribute-pair)
-                                                                      by #'cddr
-                                                                      append (list (process-style-name 
-                                                                                    style-name)
-                                                                                   (process style-value)))))
-                                                       ((string-equal (car attribute-pair)
-                                                                      "class")
-                                                        (loop for entry in (cdr attribute-pair)
-                                                             do (push entry classes))
-                                                        `(+ ,@(mapcan (lambda (x)
-                                                                        `(" " ,(process x :off `(,#'psx-tags))))
-                                                                      classes)))
-                                                       (t (process (cadr attribute-pair) 
-                                                                   :off `(,#'psx-tags))))))
-                                         attributes))
+                       (create ,@(mapcan 
+                                  (lambda (attribute-pair)
+                                    (cond ((string-equal (car attribute-pair) "class")
+                                           (loop for entry in (cdr attribute-pair)
+                                              do (push entry classes)))
+                                          (t (list (car attribute-pair)
+                                                   (cond ((string-equal (car attribute-pair)
+                                                                        "style")
+                                                          `(create ,@(loop for (style-name style-value)
+                                                                        on (rest attribute-pair)
+                                                                        by #'cddr
+                                                                        append (list (process-style-name 
+                                                                                      style-name)
+                                                                                     (process style-value)))))
+                                                         (t (process (cadr attribute-pair) 
+                                                                     :off `(,#'psx-tags))))))))
+                                  attributes)
+                               ;; put class in
+                               ,@(when classes
+                                       `(class-name
+                                         (+ ,@(mapcan (lambda (x)
+                                                        `(" " ,(process x :off `(,#'psx-tags))))
+                                                      classes)))))
                        ,@(process-each body)))))
      (top-level () (when (or (atom form)
 			     (not (match-symbol (car form) "labels")))
