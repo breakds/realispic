@@ -177,6 +177,9 @@
 				    "Expect one of {~{~a~^, ~}}.")
 			     var-name valid-state-names)))
 		  `(@ this state ,var-name)))
+     (local-slots ((operator :symbol "with-slots") slots &rest body)
+                  `(with-slots ,slots
+                       ,@(process-each body)))
      (psx-tags ((tag :keyword) attributes &rest body)
 	       (unless (or (eq tag :state)
                            (eq tag :children))
@@ -256,7 +259,8 @@
 							     #'psx-tags
                                                              #'update-state-form
 							     #'state-ref
-                                                             #'child-ref))))))
+                                                             #'child-ref
+                                                             #'local-slots))))))
      (top-level-labels ((labels-symbol :symbol "labels") fun-defs &rest body)
 		       `(render 
 			 (lambda ()
@@ -270,7 +274,8 @@
 						     #'psx-tags
                                                      #'update-state-form
 						     #'state-ref
-                                                     #'child-ref)))
+                                                     #'child-ref
+                                                     #'local-slots)))
 			 ,@(mapcan (lambda (fun-def)
 				     (list (car fun-def)
 					   (process (cons 'lambda (rest fun-def)) 
@@ -283,7 +288,8 @@
 							      #'psx-tags
                                                               #'update-state-form
 							      #'state-ref
-                                                              #'child-ref))))
+                                                              #'child-ref
+                                                              #'local-slots))))
 				   fun-defs))))
   (if psx-only 
       (values (initialize #'psx-tags) dependencies css)
